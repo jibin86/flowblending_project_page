@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="description" content="FlowBlending: Stage-Aware Multi-Model Sampling for Fast and High-Fidelity Video Generation" />
+  <meta name="keywords" content="text-to-video, diffusion, sampling acceleration" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <title>FlowBlending: Stage-Aware Multi-Model Sampling for Fast and High-Fidelity Video Generation</title>
+
+  <!-- Google Analytics (keep if you need it) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-PYVRSFMDRL"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){ dataLayer.push(arguments); }
+    gtag('js', new Date());
+    gtag('config', 'G-PYVRSFMDRL');
+  </script>
+
+  <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="./static/css/bulma.min.css">
+  <link rel="stylesheet" href="./static/css/bulma-carousel.min.css">
+  <link rel="stylesheet" href="./static/css/bulma-slider.min.css">
+  <link rel="stylesheet" href="./static/css/fontawesome.all.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script defer src="./static/js/fontawesome.all.min.js"></script>
+  <script src="./static/js/bulma-carousel.min.js"></script>
+  <script src="./static/js/bulma-slider.min.js"></script>
+
+  <style>
+    /* Smooth scroll for anchor navigation */
+    html {
+      scroll-behavior: smooth;
+    }
+
+    /* Fixed navbar offset so section titles are not hidden under the navbar */
+    :root{
+      --nav-offset: 72px; /* navbar 높이에 맞춰 조절 (대개 64~84px) */
+    }
+
+    /* Anchor jump offset */
+    section[id]{
+      scroll-margin-top: var(--nav-offset);
+    }
+
+
+    :root{
+      --bg: #0b1020;
+      --bg2:#0f1630;
+      --card:#0f1a36;
+      --card2:#101f42;
+      --text:#e8ecff;
+      --muted:#b8c0ff;
+      --line: rgba(255,255,255,0.08);
+      --accent:#6ea8fe;
+    }
+
+    html, body { background: linear-gradient(180deg, var(--bg) 0%, #070a14 100%); color: var(--text); }
+    body { font-family: "Google Sans", "Noto Sans", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+
+    /* Bulma overrides for dark theme */
+    .title, .subtitle, .content, .label, .navbar-item, .navbar-link { color: var(--text) !important; }
+    .content p, .content li { color: rgba(232,236,255,0.88); }
+    .content strong { color: var(--text); }
+    .has-text-grey, .has-text-grey-light { color: rgba(232,236,255,0.70) !important; }
+    a { color: #8ab4ff; }
+    a:hover { color: #b5d0ff; }
+
+    /* Navbar */
+    .navbar {
+      background: rgba(10, 14, 28, 0.65);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(10px);
+    }
+    .navbar.is-fixed-top { box-shadow: 0 8px 24px rgba(0,0,0,0.25); }
+    .navbar-item:hover, .navbar-link:hover { background: rgba(255,255,255,0.04) !important; }
+
+
+    /* override */
+    /* Bulma navbar: prevent white highlight on click/focus/active in dark theme */
+    .navbar .navbar-item:focus,
+    .navbar .navbar-item:focus-within,
+    .navbar .navbar-link:focus,
+    .navbar .navbar-link:focus-within,
+    .navbar .navbar-item:active,
+    .navbar .navbar-link:active,
+    .navbar .navbar-item.is-active,
+    .navbar .navbar-link.is-active {
+      background: rgba(255,255,255,0.04) !important; /* 또는 transparent */
+      color: var(--text) !important;
+    }
+
+    /* Optional: keep accessibility outline without white background */
+    .navbar .navbar-item:focus-visible,
+    .navbar .navbar-link:focus-visible {
+      outline: 2px solid rgba(110,168,254,0.65);
+      outline-offset: 2px;
+    }
+
+
+
+    /* Hero */
+    .hero.is-primary {
+      background: radial-gradient(1000px 500px at 20% 10%, rgba(110,168,254,0.20) 0%, rgba(110,168,254,0.00) 60%),
+                  radial-gradient(800px 420px at 90% 30%, rgba(180,100,255,0.18) 0%, rgba(180,100,255,0.00) 60%),
+                  linear-gradient(180deg, rgba(15,22,48,0.85), rgba(7,10,20,0.95));
+      border-bottom: 1px solid var(--line);
+    }
+
+    .pill {
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255,255,255,0.03);
+      color: rgba(232,236,255,0.85);
+      font-size: 0.92rem;
+    }
+
+    /* Cards/sections */
+    .section { padding: 2.5rem 1.5rem; }
+    .section-card {
+      background: linear-gradient(180deg, rgba(16,31,66,0.85), rgba(15,26,54,0.75));
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 1.75rem;
+      box-shadow: 0 18px 60px rgba(0,0,0,0.35);
+    }
+    .section + .section { padding-top: 0; }
+
+    .divider {
+      height: 1px;
+      background: var(--line);
+      margin: 1.25rem 0;
+    }
+
+    /* Buttons */
+    .button.is-dark {
+      background: rgba(255,255,255,0.06) !important;
+      border: 1px solid var(--line) !important;
+      color: var(--text) !important;
+    }
+    .button.is-dark:hover { background: rgba(255,255,255,0.10) !important; }
+    .button.is-accent {
+      background: rgba(110,168,254,0.16);
+      border: 1px solid rgba(110,168,254,0.35);
+      color: var(--text);
+    }
+    .button.is-accent:hover {
+      background: rgba(110,168,254,0.24);
+      border-color: rgba(110,168,254,0.55);
+    }
+
+    /* Teaser image */
+    .teaser-image {
+      width: 100%;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      box-shadow: 0 18px 60px rgba(0,0,0,0.35);
+    }
+
+    /* TOC */
+    .toc-wrap {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+    .toc-link {
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.03);
+      color: rgba(232,236,255,0.9);
+      text-decoration: none;
+      transition: transform 0.12s ease, background 0.12s ease;
+    }
+    .toc-link:hover { transform: translateY(-1px); background: rgba(255,255,255,0.06); }
+
+    /* Video grids */
+    .video-grid { display: grid; gap: 14px; }
+    .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+    @media (max-width: 1024px){
+      .grid-3, .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 700px){
+      .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+    }
+
+    .video-card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    .video-card video {
+      width: 100%;
+      height: auto;
+      display: block;
+      background: #000;
+    }
+    .video-meta {
+      padding: 10px 12px;
+      border-top: 1px solid var(--line);
+      font-size: 0.92rem;
+      color: rgba(232,236,255,0.85);
+      display:flex;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .tag-metric {
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.03);
+      color: rgba(232,236,255,0.82);
+      font-size: 0.85rem;
+      white-space: nowrap;
+    }
+
+    /* Scroll top */
+    #scrollTopButton {
+      display: none;
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      z-index: 999;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.06);
+      color: var(--text);
+      width: 44px;
+      height: 44px;
+      border-radius: 999px;
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+    }
+    #scrollTopButton:hover { background: rgba(255,255,255,0.10); }
+  </style>
+  <style>
+    /* ===== Wider layout (override Bulma max desktop width) ===== */
+    .container.is-max-desktop{
+      max-width: 1400px !important;   /* 1400~1800 사이로 취향껏 */
+      width: min(96vw, 1400px);
+    }
+
+    /* ===== Scroll top button v2 ===== */
+    #scrollTopButton{
+      display: none;
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      z-index: 999;
+      width: 48px;
+      height: 48px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.06);
+      color: var(--text);
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 10px 28px rgba(0,0,0,0.25);
+      transform: translateY(10px);
+      opacity: 0;
+      transition: opacity 160ms ease, transform 160ms ease, background 160ms ease;
+    }
+    #scrollTopButton.is-visible{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 1;
+      transform: translateY(0);
+    }
+    #scrollTopButton:hover{ background: rgba(255,255,255,0.10); }
+    #scrollTopButton:focus-visible{
+      outline: 2px solid rgba(110,168,254,0.65);
+      outline-offset: 3px;
+    }
+
+    /* Progress ring */
+    #scrollTopButton svg{
+      position: absolute;
+      inset: 0;
+      transform: rotate(-90deg);
+      pointer-events: none;
+    }
+    #scrollTopButton .icon{
+      position: relative;
+      z-index: 1;
+    }
+  </style>
+
+</head>
+
+<body>
+
+<!-- Sticky Navbar -->
+<nav class="navbar is-fixed-top" role="navigation" aria-label="main navigation">
+  <div class="container is-max-desktop">
+    <div class="navbar-brand">
+      <a class="navbar-item" href="#top">
+        <strong>FlowBlending</strong>
+      </a>
+
+      <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarMenu">
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+      </a>
+    </div>
+
+    <div id="navbarMenu" class="navbar-menu">
+      <div class="navbar-start">
+        <a class="navbar-item" href="#abstract">Abstract</a>
+        <a class="navbar-item" href="#contents">Contents</a>
+        <a class="navbar-item" href="#qualitative">Results</a>
+        <a class="navbar-item" href="#schedule">Ablations</a>
+        <a class="navbar-item" href="#compat">Compatibility</a>
+        <a class="navbar-item" href="#supp">Supplementary</a>
+      </div>
+
+      <div class="navbar-end">
+        <div class="navbar-item">
+          <div class="buttons">
+            <a class="button is-accent is-rounded" href="https://jibin86.github.io/flowblending_project_page">
+              <span class="icon"><i class="ai ai-arxiv"></i></span>
+              <span>arXiv (soon)</span>
+            </a>
+            <a class="button is-dark is-rounded" href="https://jibin86.github.io/flowblending_project_page">
+              <span class="icon"><i class="fab fa-github"></i></span>
+              <span>Code (soon)</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section id="top" class="hero is-primary is-fullheight-with-navbar">
+  <div class="hero-body">
+    <div class="container is-max-desktop">
+      <div class="columns is-centered">
+        <div class="column has-text-centered">
+          <div class="pill mb-4">
+            <span class="icon"><i class="fas fa-bolt"></i></span>
+            <span>Stage-aware multi-model sampling for fast video generation</span>
+          </div>
+
+          <h1 class="title is-1" style="line-height:1.12;">
+            FlowBlending: Stage-Aware Multi-Model Sampling for Fast and High-Fidelity Video Generation
+          </h1>
+
+          <p class="subtitle is-5 mt-4" style="max-width: 860px; margin: 0 auto;">
+            Large model where capacity matters (early/late), small model where it does not (middle).
+            Up to 1.65× faster inference with 57.35% fewer FLOPs while preserving fidelity and temporal coherence.
+          </p>
+
+          <div class="divider" style="max-width: 920px; margin-left:auto; margin-right:auto;"></div>
+
+          <div class="is-size-5">
+            <span class="author-block"><a href="https://jibin86.github.io/flowblending_project_page">Jibin Song</a></span>,
+            <span class="author-block"><a href="https://sites.google.com/view/mingikwon">Mingi Kwon</a></span>,
+            <span class="author-block"><a href="https://sites.google.com/yonsei.ac.kr/jaeseokjeong">Jaeseok Jeong</a></span>,
+            <span class="author-block"><a href="https://vilab.yonsei.ac.kr/members/professor">Youngjung Uh</a></span>
+          </div>
+          <div class="is-size-6 mt-2 has-text-grey-light">Yonsei University</div>
+
+          <div class="mt-5">
+            <div class="buttons is-centered">
+              <a class="button is-accent is-rounded" href="https://jibin86.github.io/flowblending_project_page">
+                <span class="icon"><i class="fas fa-file-pdf"></i></span>
+                <span>Paper (soon)</span>
+              </a>
+              <a class="button is-dark is-rounded" href="https://jibin86.github.io/flowblending_project_page">
+                <span class="icon"><i class="ai ai-arxiv"></i></span>
+                <span>arXiv (soon)</span>
+              </a>
+              <a class="button is-dark is-rounded" href="https://jibin86.github.io/flowblending_project_page">
+                <span class="icon"><i class="fab fa-github"></i></span>
+                <span>Code (soon)</span>
+              </a>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Teaser -->
+<section class="section">
+  <div class="container is-max-desktop">
+    <div class="section-card">
+      <div class="columns is-vcentered">
+        <div class="column">
+          <h2 class="title is-3">Overview</h2>
+          <p class="content">
+            FlowBlending allocates model capacity by stage. It uses the large model to establish global semantics early and to refine details late,
+            while delegating intermediate steps to a smaller model when the velocity divergence is minimal.
+          </p>
+        </div>
+      </div>
+      <img class="teaser-image" src="./static/images/teaser-1.png" alt="Teaser image">
+    </div>
+  </div>
+</section>
+
+<!-- Abstract -->
+<section id="abstract" class="section">
+  <div class="container is-max-desktop">
+    <div class="section-card">
+      <h2 class="title is-3">Abstract</h2>
+      <div class="content">
+        <p>
+          In this work, we show that the impact of model capacity varies across timesteps: it is crucial for the early and late stages
+          but largely negligible during the intermediate stage.
+        </p>
+        <p>
+          Accordingly, we propose <strong>FlowBlending</strong>, a stage-aware multi-model sampling strategy that employs a large model and a small model
+          at capacity-sensitive stages and intermediate stages, respectively. We further introduce simple criteria to choose stage boundaries and provide
+          a velocity-divergence analysis as an effective proxy for identifying capacity-sensitive regions.
+        </p>
+        <p>
+          Across LTX-Video (2B/13B) and WAN 2.1 (1.3B/14B), FlowBlending achieves up to <strong>1.65×</strong> faster inference with <strong>57.35%</strong> fewer FLOPs,
+          while maintaining the visual fidelity, temporal coherence, and semantic alignment of the large models. FlowBlending is also compatible with
+          existing sampling-acceleration techniques, enabling up to <strong>2×</strong> additional speedup.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Contents -->
+<section id="contents" class="section">
+  <div class="container is-max-desktop">
+    <div class="section-card">
+      <h2 class="title is-3">Contents</h2>
+      <p class="content has-text-grey-light" style="margin-bottom: 0.9rem;">
+        Quick navigation to the main results and supplementary ablations.
+      </p>
+      <div id="tableOfContents" class="toc-wrap"></div>
+    </div>
+  </div>
+</section>
+
+<!-- Qualitative Results (was Figure 1) -->
+<section id="qualitative" class="section" data-toc="Qualitative Results: Small vs. Large vs. FlowBlending">
+  <div class="container is-max-desktop">
+    <div class="section-card">
+      <h2 class="title is-3">Qualitative Results</h2>
+      <p class="content">
+        Videos are generated from the same initial noise and text prompt under different model allocation strategies.
+        FlowBlending uses the large model in the early/late stages and the small model in the intermediate stage.
+      </p>
+
+      <div class="divider"></div>
+
+      <h3 class="title is-5">Prompt: Cinematic shot of Van Gogh's selfie, Van Gogh style.</h3>
+      <div class="video-grid grid-3">
+        <div class="video-card">
+          <video autoplay controls muted loop playsinline preload="metadata">
+            <source type="video/mp4" src="static/videos/fig1/Cinematic_shot_of_Van_Gogh_s_selfie_Van_Gogh_style/small.mp4" />
+          </video>
+          <div class="video-meta">
+            <span>Small model</span><span class="tag-metric">3129 TFLOPs</span>
+          </div>
+        </div>
+        <div class="video-card">
+          <video autoplay controls muted loop playsinline preload="metadata">
+            <source type="video/mp4" src="static/videos/fig1/Cinematic_shot_of_Van_Gogh_s_selfie_Van_Gogh_style/large.mp4" />
+          </video>
+          <div class="video-meta">
+            <span>Large model</span><span class="tag-metric">29950 TFLOPs</span>
+          </div>
+        </div>
+        <div class="video-card">
+          <video autoplay controls muted loop playsinline preload="metadata">
+            <source type="video/mp4" src="static/videos/fig1/Cinematic_shot_of_Van_Gogh_s_selfie_Van_Gogh_style/FlowBlending.mp4" />
+          </video>
+          <div class="video-meta">
+            <span>FlowBlending</span><span class="tag-metric">19222 TFLOPs</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <h3 class="title is-5">Prompt: A teddy bear washing the dishes.</h3>
+      <div class="video-grid grid-3">
+        <div class="video-card">
+          <video autoplay controls muted loop playsinline preload="metadata">
+            <source type="video/mp4" src="static/videos/fig1/A_teddy_bear_washing_the_dishes/small.mp4" />
+          </video>
+          <div class="video-meta">
+            <span>Small model</span><span class="tag-metric">3129 TFLOPs</span>
+          </div>
+        </div>
+        <div class="video-card">
+          <video autoplay controls muted loop playsinline preload="metadata">
+            <source type="video/mp4" src="static/videos/fig1/A_teddy_bear_washing_the_dishes/large.mp4" />
+          </video>
+          <div class="video-meta">
+            <span>Large model</span><span class="tag-metric">29950 TFLOPs</span>
+          </div>
+        </div>
+        <div class="video-card">
+          <video autoplay controls muted loop playsinline preload="metadata">
+            <source type="video/mp4" src="static/videos/fig1/A_teddy_bear_washing_the_dishes/FlowBlending.mp4" />
+          </video>
+          <div class="video-meta">
+            <span>FlowBlending</span><span class="tag-metric">19222 TFLOPs</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <h3 class="title is-5">Prompt: A polar bear is playing guitar.</h3>
+      <div class="video-grid grid-3">
+        <div class="video-card">
+          <video autoplay controls muted loop playsinline preload="metadata">
+            <source type="video/mp4" src="static/videos/fig1/A_polar_bear_is_playing_guitar/small.mp4" />
+          </video>
+          <div class="video-meta">
+            <span>Small model</span><span class="tag-metric">3129 TFLOPs</span>
+          </div>
+        </div>
+        <div class="video-card">
+          <video autoplay controls muted loop playsinline preload="metadata">
+            <source type="video/mp4" src="static/videos/fig1/A_polar_bear_is_playing_guitar/large.mp4" />
+          </video>
+          <div class="video-meta">
+            <span>Large model</span><span class="tag-metric">29950 TFLOPs</span>
+          </div>
+        </div>
+        <div class="video-card">
+          <video autoplay controls muted loop playsinline preload="metadata">
+            <source type="video/mp4" src="static/videos/fig1/A_polar_bear_is_playing_guitar/FlowBlending.mp4" />
+          </video>
+          <div class="video-meta">
+            <span>FlowBlending</span><span class="tag-metric">19222 TFLOPs</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Schedule comparison (was Figure 2) -->
+<section id="schedule" class="section" data-toc="Schedule Comparison: Early-Stage and Late-Stage">
+  <div class="container is-max-desktop">
+    <div class="section-card">
+      <h2 class="title is-3">Schedule Comparison</h2>
+
+      <div class="divider"></div>
+
+      <h3 class="title is-5">Early-Stage Comparison (LLL vs. LSS vs. SSS vs. SLL)</h3>
+      <p class="content">
+        LSS (large only in early steps) closely matches LLL (large-only) in structure and motion,
+        while SSS (small-only) exhibits temporal inconsistency and semantic misalignment.
+        SLL (small only in early steps) likewise produces structure and motion patterns highly similar to SSS.
+        This shows that the early stages are crucial for establishing global semantic and structural attributes.
+      </p>
+
+      <div class="divider"></div>
+
+      <h4 class="title is-6">Prompt: A jellyfish floating through the ocean, with bioluminescent tentacles.</h4>
+
+      <div class="video-grid grid-2">
+        <div class="video-card">
+          <video autoplay controls muted loop playsinline preload="metadata">
+            <source type="video/mp4" src="static/videos/fig2/A_jellyfish_floating_through_the_ocean_with_bioluminescent_tentacles/LLL.mp4" />
+          </video>
+          <div class="video-meta">
+            <span>LLL</span><span class="tag-metric">29950 TFLOPs</span>
+          </div>
+        </div>
+        <div class="video-card">
+          <video autoplay controls muted loop playsinline preload="metadata">
+            <source type="video/mp4" src="static/videos/fig2/A_jellyfish_floating_through_the_ocean_with_bioluminescent_tentacles/LSS.mp4" />
+          </video>
+          <div class="video-meta">
+            <span>LSS</span><span class="tag-metric">13858 TFLOPs</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="video-grid grid-2" style="margin-top: 14px;">
+        <div class="video-card">
+          <video autoplay controls muted loop playsinline preload="metadata">
+            <source type="video/mp4" src="static/videos/fig2/A_jellyfish_floating_through_the_ocean_with_bioluminescent_tentacles/SSS.mp4" />
+          </video>
+          <div class="video-meta">
+            <span>SSS</span><span class="tag-metric">3129 TFLOPs</span>
+          </div>
+        </div>
+        <div class="video-card">
+          <video autoplay controls muted loop playsinline preload="metadata">
+            <source type="video/mp4" src="static/videos/fig2/A_jellyfish_floating_through_the_ocean_with_bioluminescent_tentacles/SLL.mp4" />
+          </video>
+          <div class="video-meta">
+            <span>SLL</span><span class="tag-metric">24586 TFLOPs</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <h3 class="title is-5">Late-Stage Comparison (LLL vs. LSS vs. LSL)</h3>
+      <p class="content">
+        LSS preserves global structure similar to LLL but exhibits some artifacts.
+        Reintroducing the large model only during the late stage (LSL)
+        restores detail and reduces flicker, demonstrating that the late denoising stage is capacity-sensitive.
+        Notably, the LSL schedule attains quality nearly indistinguishable from LLL while retaining the
+        efficiency benefits of using the small model for most of the trajectory. Please zoom in to view the figures in detail.
+      </p>
+
+      <div class="divider"></div>
+
+      <h4 class="title is-6">Prompt: an elephant spraying itself with water using its trunk to cool down</h4>
+      <div class="video-grid grid-3">
+        <div class="video-card">
+          <video autoplay controls muted loop playsinline preload="metadata">
+            <source type="video/mp4" src="static/videos/fig3/an_elephant_spraying_itself_with_water_using_its_trunk_to_cool_down/LLL.mp4" />
+          </video>
+          <div class="video-meta">
+            <span>LLL</span><span class="tag-metric">29950 TFLOPs</span>
+          </div>
+        </div>
+        <div class="video-card">
+          <video autoplay controls muted loop playsinline preload="metadata">
+            <source type="video/mp4" src="static/videos/fig3/an_elephant_spraying_itself_with_water_using_its_trunk_to_cool_down/LSS.mp4" />
+          </video>
+          <div class="video-meta">
+            <span>LSS</span><span class="tag-metric">13858 TFLOPs</span>
+          </div>
+        </div>
+        <div class="video-card">
+          <video autoplay controls muted loop playsinline preload="metadata">
+            <source type="video/mp4" src="static/videos/fig3/an_elephant_spraying_itself_with_water_using_its_trunk_to_cool_down/LSL.mp4" />
+          </video>
+          <div class="video-meta">
+            <span>LSL</span><span class="tag-metric">19222 TFLOPs</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- Compatibility (was Figure 8 & 9) -->
+<section id="compat" class="section" data-toc="Compatibility: DPM++ Solver and Step Distillation">
+  <div class="container is-max-desktop">
+    <div class="section-card">
+      <h2 class="title is-3">Compatibility</h2>
+      <p class="content">
+        FlowBlending schedules remain compatible with existing acceleration techniques.
+        Below we show examples with a DPM++ solver and a step-distilled small model.
+      </p>
+
+      <div class="divider"></div>
+
+      <h3 class="title is-5">DPM++ Solver</h3>
+      <p class="content">
+        Ours (LSL) is compatible with DPM++ solvers, reproducing similar videos to the videos using only the large model (LLL).
+        Please zoom in to view the figures in detail
+      </p>
+
+      <div class="divider"></div>
+
+      <h4 class="title is-6">Prompt: … a person's hand holding a fork and cutting into a pastry …</h4>
+
+      <div class="video-grid grid-3">
+        <div class="video-card">
+          <video autoplay controls muted loop playsinline preload="metadata"><source type="video/mp4" src="static/videos/fig8/1_LLL.mp4" /></video>
+          <div class="video-meta"><span>LLL</span><span class="tag-metric">1748 TFLOPs</span></div>
+        </div>
+        <div class="video-card">
+          <video autoplay controls muted loop playsinline preload="metadata"><source type="video/mp4" src="static/videos/fig8/1_LSL.mp4" /></video>
+          <div class="video-meta"><span>LSL</span><span class="tag-metric">928 TFLOPs</span></div>
+        </div>
+        <div class="video-card">
+          <video autoplay controls muted loop playsinline preload="metadata"><source type="video/mp4" src="static/videos/fig8/1_SSS.mp4" /></video>
+          <div class="video-meta"><span>SSS</span><span class="tag-metric">257 TFLOPs</span></div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <h4 class="title is-6">Prompt: … a close-up of a grill with a piece of salmon on it …</h4>
+      <div class="video-grid grid-3">
+        <div class="video-card">
+          <video autoplay controls muted loop playsinline preload="metadata"><source type="video/mp4" src="static/videos/fig8/2_LLL.mp4" /></video>
+          <div class="video-meta"><span>LLL</span><span class="tag-metric">1748 TFLOPs</span></div>
+        </div>
+        <div class="video-card">
+          <video autoplay controls muted loop playsinline preload="metadata"><source type="video/mp4" src="static/videos/fig8/2_LSL.mp4" /></video>
+          <div class="video-meta"><span>LSL</span><span class="tag-metric">928 TFLOPs</span></div>
+        </div>
+        <div class="video-card">
+          <video autoplay controls muted loop playsinline preload="metadata"><source type="video/mp4" src="static/videos/fig8/2_SSS.mp4" /></video>
+          <div class="video-meta"><span>SSS</span><span class="tag-metric">257 TFLOPs</span></div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <h3 class="title is-5">Step Distillation Model</h3>
+      <p class="content">
+        The step distillation model (D) with small capacity can replace the original small model (S).
+        As done with the original small model, LDL reproduces the results with LLL.
+        In contrast, DDD does not. Please zoom in to view the figures in detail.
+      </p>
+      
+      <div class="divider"></div>
+
+      <h4 class="title is-6">Prompt: … people walking on a frozen lake, pulling a boat ...</h4>
+      <div class="video-grid grid-3">
+        <div class="video-card">
+          <video autoplay controls muted loop playsinline preload="metadata"><source type="video/mp4" src="static/videos/fig9/1_LLL.mp4" /></video>
+          <div class="video-meta"><span>LLL</span><span class="tag-metric">3496 TFLOPs</span></div>
+        </div>
+        <div class="video-card">
+          <video autoplay controls muted loop playsinline preload="metadata"><source type="video/mp4" src="static/videos/fig9/1_LSL.mp4" /></video>
+          <div class="video-meta"><span>LDL</span><span class="tag-metric">1774 TFLOPs</span></div>
+        </div>
+        <div class="video-card">
+          <video autoplay controls muted loop playsinline preload="metadata"><source type="video/mp4" src="static/videos/fig9/1_SSS.mp4" /></video>
+          <div class="video-meta"><span>DDD</span><span class="tag-metric">51 TFLOPs</span></div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <h4 class="title is-6">Prompt: … a person sprinkling flour on a ball of dough …</h4>
+      <div class="video-grid grid-3">
+        <div class="video-card">
+          <video autoplay controls muted loop playsinline preload="metadata"><source type="video/mp4" src="static/videos/fig9/2_LLL.mp4" /></video>
+          <div class="video-meta"><span>LLL</span><span class="tag-metric">3496 TFLOPs</span></div>
+        </div>
+        <div class="video-card">
+          <video autoplay controls muted loop playsinline preload="metadata"><source type="video/mp4" src="static/videos/fig9/2_LSL.mp4" /></video>
+          <div class="video-meta"><span>LDL</span><span class="tag-metric">1774 TFLOPs</span></div>
+        </div>
+        <div class="video-card">
+          <video autoplay controls muted loop playsinline preload="metadata"><source type="video/mp4" src="static/videos/fig9/2_SSS.mp4" /></video>
+          <div class="video-meta"><span>DDD</span><span class="tag-metric">51 TFLOPs</span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- Supplementary -->
+<section id="supp" class="section" data-toc="Supplementary: Boundary Selection Ablations">
+  <div class="container is-max-desktop">
+    <div class="section-card">
+      <h2 class="title is-3">Supplementary</h2>
+
+      <h3 class="title is-5">Early-stage boundary selection ablation</h3>
+      <p class="content">
+        Small-model introduction point (%). 
+        We vary the point at which the small model is introduced. Up to 40%, LLL and LSS remain visually identical, but at 20% motion begins to diverge.
+        This indicates that <strong>OURS (40%)</strong> is the earliest point to use the small model extensively while preserving the large-only baseline.
+      </p>
+
+      <h4 class="title is-6">Prompt: A goat and two baby goats standing on a ledge. The goat is wearing a black blanket, and the baby goats are wearing a red and green blanket…</h4>
+      <div class="video-grid grid-4">
+        <div class="video-card">
+          <video autoplay controls muted loop playsinline preload="metadata"><source type="video/mp4" src="static/videos/supple_early_boundary/LLL.mp4" /></video>
+          <div class="video-meta"><span>LLL</span><span class="tag-metric">100%</span></div>
+        </div>
+        <div class="video-card">
+          <video autoplay controls muted loop playsinline preload="metadata"><source type="video/mp4" src="static/videos/supple_early_boundary/LSS_30.mp4" /></video>
+          <div class="video-meta"><span>LSS</span><span class="tag-metric">60%</span></div>
+        </div>
+        <div class="video-card">
+          <video autoplay controls muted loop playsinline preload="metadata"><source type="video/mp4" src="static/videos/supple_early_boundary/LSS_20_ours.mp4" /></video>
+          <div class="video-meta"><span>LSS (OURS)</span><span class="tag-metric">40%</span></div>
+        </div>
+        <div class="video-card">
+          <video autoplay controls muted loop playsinline preload="metadata"><source type="video/mp4" src="static/videos/supple_early_boundary/LSS_10.mp4" /></video>
+          <div class="video-meta"><span>LSS</span><span class="tag-metric">20%</span></div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <h3 class="title is-5">Late-stage boundary selection</h3>
+      <p class="content">
+        Large-model reintroduction point (% from the end).
+        We vary the point (from the end) at which the large model is reintroduced. <strong>LSL-OURS (20%)</strong> is generally stable,
+        while LSS (0%) shows clear artifacts, suggesting late denoising benefits from higher capacity.
+      </p>
+
+      <h4 class="title is-6">Prompt: A black and white dog sitting on a sofa with a green ball in front of it. The dog is looking at the camera and moving its head around. The dog then picks up the ball and starts chewing on it...</h4>
+      <div class="video-grid grid-4">
+        <div class="video-card">
+          <video autoplay controls muted loop playsinline preload="metadata"><source type="video/mp4" src="static/videos/supple_late_boundary/dog_LLL.mp4" /></video>
+          <div class="video-meta"><span>LLL</span><span class="tag-metric">—</span></div>
+        </div>
+        <div class="video-card">
+          <video autoplay controls muted loop playsinline preload="metadata"><source type="video/mp4" src="static/videos/supple_late_boundary/dog_LSL_20_30.mp4" /></video>
+          <div class="video-meta"><span>LSL</span><span class="tag-metric">40%</span></div>
+        </div>
+        <div class="video-card">
+          <video autoplay controls muted loop playsinline preload="metadata"><source type="video/mp4" src="static/videos/supple_late_boundary/dog_LSL_ours.mp4" /></video>
+          <div class="video-meta"><span>LSL (OURS)</span><span class="tag-metric">20%</span></div>
+        </div>
+        <div class="video-card">
+          <video autoplay controls muted loop playsinline preload="metadata"><source type="video/mp4" src="static/videos/supple_late_boundary/dog_LSS.mp4" /></video>
+          <div class="video-meta"><span>LSS</span><span class="tag-metric">0%</span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<footer class="section">
+  <div class="container is-max-desktop">
+    <div class="content has-text-centered has-text-grey-light">
+      <p>
+        © FlowBlending Project Page. Built with Bulma.
+      </p>
+    </div>
+  </div>
+</footer>
+
+<button id="scrollTopButton" title="Back to top" aria-label="Back to top">
+  <!-- progress ring -->
+  <svg viewBox="0 0 100 100" aria-hidden="true">
+    <circle cx="50" cy="50" r="46" fill="none" stroke="rgba(255,255,255,0.10)" stroke-width="6"></circle>
+    <circle id="scrollTopProgress" cx="50" cy="50" r="46" fill="none"
+            stroke="rgba(110,168,254,0.85)" stroke-width="6"
+            stroke-linecap="round" stroke-dasharray="289.0" stroke-dashoffset="289.0"></circle>
+  </svg>
+  <span class="icon"><i class="fas fa-arrow-up"></i></span>
+</button>
+
+
+<script>
+  // Bulma navbar burger
+  document.addEventListener('DOMContentLoaded', () => {
+    const burgers = Array.prototype.slice.call(document.querySelectorAll('.navbar-burger'), 0);
+    burgers.forEach(el => {
+      el.addEventListener('click', () => {
+        const target = el.dataset.target;
+        const $target = document.getElementById(target);
+        el.classList.toggle('is-active');
+        $target.classList.toggle('is-active');
+      });
+    });
+  });
+
+  // TOC builder: only sections with data-toc
+  document.addEventListener('DOMContentLoaded', function() {
+    const toc = document.getElementById('tableOfContents');
+    const sections = document.querySelectorAll('section[data-toc]');
+    sections.forEach((sec, idx) => {
+      if (!sec.id) sec.id = `sec-${idx+1}`;
+      const a = document.createElement('a');
+      a.className = 'toc-link';
+      a.href = `#${sec.id}`;
+      a.textContent = sec.getAttribute('data-toc');
+      toc.appendChild(a);
+    });
+  });
+
+  // Scroll-to-top (v2: class toggle + progress ring)
+  (function(){
+    const btn = document.getElementById('scrollTopButton');
+    const prog = document.getElementById('scrollTopProgress');
+    if (!btn) return;
+
+    // progress ring geometry
+    const r = 46;
+    const C = 2 * Math.PI * r; // ~289.0
+    if (prog) {
+      prog.style.strokeDasharray = `${C}`;
+      prog.style.strokeDashoffset = `${C}`;
+    }
+
+    function getScrollInfo(){
+      const doc = document.documentElement;
+      const scrollTop = doc.scrollTop || document.body.scrollTop || 0;
+      const scrollHeight = doc.scrollHeight || document.body.scrollHeight || 0;
+      const clientHeight = doc.clientHeight || window.innerHeight || 1;
+      const maxScroll = Math.max(1, scrollHeight - clientHeight);
+      return { scrollTop, maxScroll };
+    }
+
+    function onScroll(){
+      const { scrollTop, maxScroll } = getScrollInfo();
+
+      // show/hide
+      if (scrollTop > 300) btn.classList.add('is-visible');
+      else btn.classList.remove('is-visible');
+
+      // progress (0 at top -> 1 at bottom)
+      if (prog) {
+        const p = Math.min(1, Math.max(0, scrollTop / maxScroll));
+        prog.style.strokeDashoffset = `${C * (1 - p)}`;
+      }
+    }
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+
+    btn.addEventListener('click', function() {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    // init
+    onScroll();
+  })();
+</script>
+<script>
+  // Smooth anchor scroll with fixed-navbar offset
+  (function () {
+    const OFFSET = 72; // CSS의 --nav-offset 과 동일하게 맞추세요.
+
+    function scrollToHash(hash) {
+      const el = document.querySelector(hash);
+      if (!el) return;
+
+      const y = window.pageYOffset + el.getBoundingClientRect().top - OFFSET;
+      window.scrollTo({ top: y, behavior: 'smooth' });
+    }
+
+    // Intercept clicks on in-page anchor links
+    document.addEventListener('click', (e) => {
+      const a = e.target.closest('a[href^="#"]');
+      if (!a) return;
+
+      const hash = a.getAttribute('href');
+      if (!hash || hash === '#') return;
+
+      const target = document.querySelector(hash);
+      if (!target) return;
+
+      e.preventDefault();
+      history.pushState(null, '', hash);
+      scrollToHash(hash);
+
+      // Close burger menu on mobile after click
+      const burger = document.querySelector('.navbar-burger');
+      const menu = document.getElementById(burger?.dataset?.target || 'navbarMenu');
+      if (burger && menu && burger.classList.contains('is-active')) {
+        burger.classList.remove('is-active');
+        menu.classList.remove('is-active');
+      }
+    });
+
+    // If page loads with a hash, apply offset scroll once layout is ready
+    window.addEventListener('load', () => {
+      if (location.hash) scrollToHash(location.hash);
+    });
+  })();
+</script>
+
+
+</body>
+</html>
