@@ -9,7 +9,7 @@
   <title>FlowBlending: Stage-Aware Multi-Model Sampling for Fast and High-Fidelity Video Generation</title>
 
   <!-- Google Analytics (keep if you need it) -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-PYVRSFMDRL"></script>
+  <!-- <script async src="https://www.googletagmanager.com/gtag/js?id=G-PYVRSFMDRL"></script> -->
   <script>
     window.dataLayer = window.dataLayer || [];
     function gtag(){ dataLayer.push(arguments); }
@@ -69,37 +69,75 @@
     a { color: #8ab4ff; }
     a:hover { color: #b5d0ff; }
 
-    /* Navbar */
-    .navbar {
-      background: rgba(10, 14, 28, 0.65);
+    /* =========================
+      Navbar (dark, desktop+mobile)
+      ========================= */
+    :root{
+      --nav-offset: 72px; /* navbar 높이 */
+      --nav-bg: rgba(10, 14, 28, 0.65);
+      --nav-item-hover: rgba(255,255,255,0.04);
+      --nav-item-active: rgba(255,255,255,0.06);
+    }
+
+    /* fixed navbar offset */
+    html { scroll-behavior: smooth; }
+    section[id]{ scroll-margin-top: var(--nav-offset); }
+
+    .navbar{
+      background: var(--nav-bg);
       border-bottom: 1px solid var(--line);
       backdrop-filter: blur(10px);
     }
-    .navbar.is-fixed-top { box-shadow: 0 8px 24px rgba(0,0,0,0.25); }
-    .navbar-item:hover, .navbar-link:hover { background: rgba(255,255,255,0.04) !important; }
+    .navbar.is-fixed-top{ box-shadow: 0 8px 24px rgba(0,0,0,0.25); }
+
+    /* IMPORTANT: mobile opened panel background (this is what was white) */
+    .navbar-menu{
+      background: var(--nav-bg) !important;
+      border-top: 1px solid var(--line);
+    }
+    .navbar-dropdown{ background: var(--nav-bg) !important; border: 1px solid var(--line); }
+
+    /* items + links */
+    .navbar .navbar-item,
+    .navbar .navbar-link{
+      color: var(--text) !important;
+    }
 
 
-    /* override */
-    /* Bulma navbar: prevent white highlight on click/focus/active in dark theme */
+    /* hover/focus/active states (desktop+mobile) */
+    .navbar .navbar-item:hover,
+    .navbar .navbar-link:hover,
     .navbar .navbar-item:focus,
-    .navbar .navbar-item:focus-within,
     .navbar .navbar-link:focus,
+    .navbar .navbar-item:focus-within,
     .navbar .navbar-link:focus-within,
     .navbar .navbar-item:active,
     .navbar .navbar-link:active,
     .navbar .navbar-item.is-active,
-    .navbar .navbar-link.is-active {
-      background: rgba(255,255,255,0.04) !important; /* 또는 transparent */
+    .navbar .navbar-link.is-active{
+      background: var(--nav-item-hover) !important;
       color: var(--text) !important;
     }
 
-    /* Optional: keep accessibility outline without white background */
+    /* optional: slightly stronger highlight for current section if you ever add is-active manually */
+    .navbar .navbar-item.is-current{
+      background: var(--nav-item-active) !important;
+    }
+
+    /* keep accessible outline without white background */
     .navbar .navbar-item:focus-visible,
-    .navbar .navbar-link:focus-visible {
+    .navbar .navbar-link:focus-visible{
       outline: 2px solid rgba(110,168,254,0.65);
       outline-offset: 2px;
     }
-
+    
+    /* burger icon color */
+    .navbar-burger{
+      color: var(--text) !important;
+    }
+    .navbar-burger:hover{
+      background: rgba(255,255,255,0.04) !important;
+    }
 
 
     /* Hero */
@@ -329,9 +367,9 @@
       <div class="navbar-end">
         <div class="navbar-item">
           <div class="buttons">
-            <a class="button is-accent is-rounded" href="https://jibin86.github.io/flowblending_project_page">
+            <a class="button is-accent is-rounded" href="https://arxiv.org/abs/2512.24724">
               <span class="icon"><i class="ai ai-arxiv"></i></span>
-              <span>arXiv (soon)</span>
+              <span>arXiv</span>
             </a>
             <a class="button is-dark is-rounded" href="https://jibin86.github.io/flowblending_project_page">
               <span class="icon"><i class="fab fa-github"></i></span>
@@ -367,7 +405,7 @@
           <div class="divider" style="max-width: 920px; margin-left:auto; margin-right:auto;"></div>
 
           <div class="is-size-5">
-            <span class="author-block"><a href="https://jibin86.github.io/flowblending_project_page">Jibin Song</a></span>,
+            <span class="author-block"><a href="https://sites.google.com/view/jibin-song">Jibin Song</a></span>,
             <span class="author-block"><a href="https://sites.google.com/view/mingikwon">Mingi Kwon</a></span>,
             <span class="author-block"><a href="https://sites.google.com/yonsei.ac.kr/jaeseokjeong">Jaeseok Jeong</a></span>,
             <span class="author-block"><a href="https://vilab.yonsei.ac.kr/members/professor">Youngjung Uh</a></span>
@@ -376,13 +414,13 @@
 
           <div class="mt-5">
             <div class="buttons is-centered">
-              <a class="button is-accent is-rounded" href="https://jibin86.github.io/flowblending_project_page">
+              <a class="button is-accent is-rounded" href="https://arxiv.org/pdf/2512.24724">
                 <span class="icon"><i class="fas fa-file-pdf"></i></span>
-                <span>Paper (soon)</span>
+                <span>Paper</span>
               </a>
-              <a class="button is-dark is-rounded" href="https://jibin86.github.io/flowblending_project_page">
+              <a class="button is-dark is-rounded" href="https://arxiv.org/abs/2512.24724">
                 <span class="icon"><i class="ai ai-arxiv"></i></span>
-                <span>arXiv (soon)</span>
+                <span>arXiv</span>
               </a>
               <a class="button is-dark is-rounded" href="https://jibin86.github.io/flowblending_project_page">
                 <span class="icon"><i class="fab fa-github"></i></span>
@@ -461,6 +499,7 @@
       <p class="content">
         Videos are generated from the same initial noise and text prompt under different model allocation strategies.
         FlowBlending uses the large model in the early/late stages and the small model in the intermediate stage.
+        FlowBlending produces results that are visually comparable to the large-only baseline despite being faster.
       </p>
 
       <div class="divider"></div>
